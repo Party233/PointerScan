@@ -6,6 +6,8 @@
 
 namespace memchainer {
 
+
+//TODO 优化内存使用 引入文件缓存
 PointerChain::PointerChain() : maxLevel_(0), totalChains_(0), isCompressed_(false) {}
 
 PointerChain::~PointerChain() {

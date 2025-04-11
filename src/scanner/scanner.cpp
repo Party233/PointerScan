@@ -63,7 +63,7 @@ uint32_t PointerScanner::findPointers(Address startAddress, Address endAddress) 
     // 如果没有指定范围，扫描所有过滤的区域
     if (startAddress == 0 && endAddress == 0) {
         for (const auto* region : regions) {
-            //线程池扫描
+            //TODO 线程池扫描
             scanRegionForPointers(region->startAddress, region->endAddress);
         }
     } else {
@@ -78,7 +78,7 @@ uint32_t PointerScanner::findPointers(Address startAddress, Address endAddress) 
                 // 按指针值排序
                   return a->value < b->value;
               });
-        std::cout << "扫描潜在指针完成"
+        std::cout << "扫描潜在指针完成\n"
               << " 指针数量: " << pointerCache_.size()
               << " 内存使用: " << pointerCache_.size() * sizeof(PointerData) / 1024 / 1024 << " MB"
               << std::endl;
@@ -93,7 +93,7 @@ void PointerScanner::scanRegionForPointers(Address startAddress, Address endAddr
     
     std::vector<uint8_t> buffer(BUFFER_SIZE);
     std::error_code ec;
-    // 清除地址映射
+    // 清除地址映射 减少内存占用
     addressMap_.clear();
     for (Address addr = startAddress; addr < endAddress; addr += BUFFER_SIZE) {
         size_t readSize = std::min<size_t>(BUFFER_SIZE, endAddress - addr);
@@ -117,11 +117,9 @@ void PointerScanner::scanRegionForPointers(Address startAddress, Address endAddr
                 continue;
             }
             
-            // 
-            //if (memoryAccess_->isValidAddress(value)) 
             {
                 Address pointerAddr = addr + i;
-                //printf("pointerAddr: %lx -> %lx\n", pointerAddr, value);
+
                 // 避免重复
                 if (addressMap_.find(pointerAddr) == addressMap_.end()) {
                     auto* pointerallData = new PointerAllData(
