@@ -86,8 +86,10 @@ uint32_t PointerScanner::findPointers(Address startAddress, Address endAddress) 
 
 void PointerScanner::scanRegionForPointers(Address startAddress, Address endAddress) {
 
-    
+    // 获取页面大小
+    const size_t PAGE_SIZE = sysconf(_SC_PAGESIZE);
     const size_t BUFFER_SIZE = PAGE_SIZE;
+    
     std::vector<uint8_t> buffer(BUFFER_SIZE);
     std::error_code ec;
     // 清除地址映射
