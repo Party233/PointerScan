@@ -203,35 +203,35 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    std::cout << "找到 " << result->getChainCount() << " 条指针链" << std::endl;
+    //std::cout << "找到 " << result->getChainCount() << " 条指针链" << std::endl;
 
-    // 保存结果到文件
-    std::string outputFile = parser.getOptionValue("file", "pointer_chains.txt");
+    // // 保存结果到文件
+    // std::string outputFile = parser.getOptionValue("file", "pointer_chains.txt");
 
-    // 格式化结果
-    PointerFormatter formatter;
-    formatter.formatToTextFile(result, outputFile);
-    std::cout << "结果已保存到: " << outputFile << std::endl;
+    // // 格式化结果
+    // PointerFormatter formatter;
+    // formatter.formatToTextFile(result, outputFile);
+    // std::cout << "结果已保存到: " << outputFile << std::endl;
 
-    // 显示前10条链
-    formatter.formatToConsole(result, 10);
+    // // 显示前10条链
+    // formatter.formatToConsole(result, 10);
 
-    // 如果指定了缓存目录
-    if (parser.hasOption("cache-dir")) {
-        std::string cacheDir = parser.getOptionValue("cache-dir");
-        scanner->setCachePath(cacheDir);
-        if (verboseMode) {
-            std::cout << "文件缓存目录设置为: " << cacheDir << std::endl;
-        }
-    }
+    // // 如果指定了缓存目录
+    // if (parser.hasOption("cache-dir")) {
+    //     std::string cacheDir = parser.getOptionValue("cache-dir");
+    //     scanner->setCachePath(cacheDir);
+    //     if (verboseMode) {
+    //         std::cout << "文件缓存目录设置为: " << cacheDir << std::endl;
+    //     }
+    // }
 
-    // 使用智能过滤
-    if (parser.hasOption("smart-filter")) {
-        memMap->applySmartFilter();
-        if (verboseMode) {
-            std::cout << "启用智能内存区域过滤" << std::endl;
-        }
-    }
+    // // 使用智能过滤
+    // if (parser.hasOption("smart-filter")) {
+    //     memMap->applySmartFilter();
+    //     if (verboseMode) {
+    //         std::cout << "启用智能内存区域过滤" << std::endl;
+    //     }
+    // }
 
     return 0;
 }

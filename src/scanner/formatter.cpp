@@ -2,59 +2,36 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 
 namespace memchainer {
 
-PointerFormatter::PointerFormatter() {
-}
+PointerFormatter::PointerFormatter() = default;
 
-PointerFormatter::~PointerFormatter() {
-}
+PointerFormatter::~PointerFormatter() = default;
 
-void PointerFormatter::formatToConsole(const std::shared_ptr<PointerChain>& chain, uint32_t maxChains) {
+void PointerFormatter::formatToConsole(const std::shared_ptr<PointerChain>& chain, size_t maxChains) {
     if (!chain || chain->isEmpty()) {
-        std::cout << "无指针链数据" << std::endl;
+        std::cout << "没有找到有效的指针链" << std::endl;
         return;
     }
+
+    // 计算实际要显示的链数
+    size_t displayCount = maxChains > 0 ? std::min(maxChains, chain->getTotalChains()) : chain->getTotalChains();
     
-    uint32_t chainCount = chain->getChainCount();
-    uint32_t levelCount = chain->getLevelCount();
-    
-    std::cout << "发现 " << chainCount << " 条指针链，" << levelCount << " 层" << std::endl;
-    
-    // 如果指定了最大链数，则限制输出
-    if (maxChains > 0 && maxChains < chainCount) {
-        chainCount = maxChains;
-    }
-    
-    // 输出每条链
-    for (uint32_t i = 0; i < chainCount; ++i) {
-        std::cout << std::endl << "链 #" << (i + 1) << ":" << std::endl;
+    std::cout << "找到 " << displayCount << " 条指针链" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+
+    // 显示每条链
+    for (size_t i = 0; i < displayCount; ++i) {
+        std::cout << "链 " << i + 1 << ":" << std::endl;
         
-        // 获取基址和偏移量
-        Address baseAddress = 0;
-        if (!chain->getPointersAtLevel(0).empty()) {
-            baseAddress = chain->getPointersAtLevel(0)[0].address;
+        const auto& chainNodes = chain->chains_[i];
+        for (const auto& node : chainNodes) {
+            std::cout << "  " << formatNode(node) << std::endl;
         }
         
-        std::vector<Offset> offsets = chain->getChainOffsets(i);
-        
-        // 输出基址
-        std::cout << "基址: 0x" << std::hex << std::setw(16) << std::setfill('0') << baseAddress << std::dec << std::endl;
-        
-        // 输出偏移链
-        std::cout << "偏移链: ";
-        for (size_t j = 0; j < offsets.size(); ++j) {
-            std::cout << "0x" << std::hex << offsets[j] << std::dec;
-            if (j < offsets.size() - 1) {
-                std::cout << " → ";
-            }
-        }
-        std::cout << std::endl;
-        
-        // 输出最终地址
-        Address finalAddress = chain->getPointersAtLevel(levelCount - 1)[i].address;
-        std::cout << "最终地址: 0x" << std::hex << std::setw(16) << std::setfill('0') << finalAddress << std::dec << std::endl;
+        std::cout << "----------------------------------------" << std::endl;
     }
 }
 
@@ -62,52 +39,109 @@ bool PointerFormatter::formatToTextFile(const std::shared_ptr<PointerChain>& cha
     if (!chain || chain->isEmpty()) {
         return false;
     }
-    
+
     std::ofstream file(filename);
     if (!file.is_open()) {
         return false;
     }
-    
-    uint32_t chainCount = chain->getChainCount();
-    uint32_t levelCount = chain->getLevelCount();
-    
-    file << "# 指针链结果" << std::endl;
-    file << "# 总链数: " << chainCount << std::endl;
-    file << "# 层数: " << levelCount << std::endl << std::endl;
-    
-    // 输出每条链
-    for (uint32_t i = 0; i < chainCount; ++i) {
-        file << "链 #" << (i + 1) << ":" << std::endl;
+
+    file << "指针链总数: " << chain->getTotalChains() << std::endl;
+
+    file << "----------------------------------------" << std::endl;
+
+    for (size_t i = 0; i < chain->getTotalChains(); ++i) {
+        file << "链 " << i + 1 << ":" << std::endl;
         
-        // 获取基址和偏移量
-        Address baseAddress = 0;
-        if (!chain->getPointersAtLevel(0).empty()) {
-            baseAddress = chain->getPointersAtLevel(0)[0].address;
+        const auto& chainNodes = chain->chains_[i];
+        for (const auto& node : chainNodes) {
+            file << "  " << formatNode(node) << std::endl;
         }
         
-        std::vector<Offset> offsets = chain->getChainOffsets(i);
-        
-        // 输出基址
-        file << "基址: 0x" << std::hex << std::setw(16) << std::setfill('0') << baseAddress << std::dec << std::endl;
-        
-        // 输出偏移链
-        file << "偏移链: ";
-        for (size_t j = 0; j < offsets.size(); ++j) {
-            file << "0x" << std::hex << offsets[j] << std::dec;
-            if (j < offsets.size() - 1) {
-                file << " → ";
-            }
+        file << "----------------------------------------" << std::endl;
+    }
+
+    return true;
+}
+
+std::string PointerFormatter::formatNode(const PointerChainNode& node) const {
+    std::stringstream ss;
+    
+    // 地址
+    if (format_ == "hex" || format_ == "both") {
+        ss << "地址: 0x" << std::hex << std::setw(16) << std::setfill('0') << node.address;
+        if (format_ == "both") {
+            ss << " (" << std::dec << node.address << ")";
         }
-        file << std::endl;
-        
-        // 输出最终地址
-        Address finalAddress = chain->getPointersAtLevel(levelCount - 1)[i].address;
-        file << "最终地址: 0x" << std::hex << std::setw(16) << std::setfill('0') << finalAddress << std::dec << std::endl;
-        file << std::endl;
+    } else {
+        ss << "地址: " << node.address;
     }
     
-    file.close();
-    return true;
+    // 值
+    if (format_ == "hex" || format_ == "both") {
+        ss << " 值: 0x" << std::hex << std::setw(16) << std::setfill('0') << node.value;
+        if (format_ == "both") {
+            ss << " (" << std::dec << node.value << ")";
+        }
+    } else {
+        ss << " 值: " << node.value;
+    }
+    
+    // 偏移量
+    if (format_ == "hex" || format_ == "both") {
+        ss << " 偏移: 0x" << std::hex << std::setw(8) << std::setfill('0') << node.offset;
+        if (format_ == "both") {
+            ss << " (" << std::dec << node.offset << ")";
+        }
+    } else {
+        ss << " 偏移: " << node.offset;
+    }
+    
+    // 静态偏移信息
+    if (showStaticOffset_ && node.staticOffset.staticOffset > 0) {
+        ss << " " << formatStaticOffset(node.staticOffset);
+    }
+    
+    return ss.str();
+}
+
+std::string PointerFormatter::formatStaticOffset(const StaticOffset& staticOffset) const {
+    std::stringstream ss;
+    
+    if (format_ == "hex" || format_ == "both") {
+        ss << "静态偏移: 0x" << std::hex << std::setw(8) << std::setfill('0') << staticOffset.staticOffset;
+        if (format_ == "both") {
+            ss << " (" << std::dec << staticOffset.staticOffset << ")";
+        }
+    } else {
+        ss << "静态偏移: " << staticOffset.staticOffset;
+    }
+    
+    if (showDetails_ && staticOffset.region) {
+        ss << " " << formatRegion(staticOffset.region);
+    }
+    
+    return ss.str();
+}
+
+std::string PointerFormatter::formatRegion(const MemoryRegion* region) const {
+    if (!region) return "";
+    
+    std::stringstream ss;
+    ss << "区域: " << region->name;
+    
+    if (showDetails_) {
+        if (format_ == "hex" || format_ == "both") {
+            ss << " [0x" << std::hex << std::setw(16) << std::setfill('0') << region->startAddress
+               << "-0x" << std::setw(16) << std::setfill('0') << region->endAddress << "]";
+            if (format_ == "both") {
+                ss << " [" << std::dec << region->startAddress << "-" << region->endAddress << "]";
+            }
+        } else {
+            ss << " [" << region->startAddress << "-" << region->endAddress << "]";
+        }
+    }
+    
+    return ss.str();
 }
 
 } // namespace memchainer

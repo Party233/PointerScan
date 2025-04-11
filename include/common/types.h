@@ -102,17 +102,14 @@ struct PointerDir {
     Address address;      // 地址
     Offset offset;        // 偏移量
     StaticOffset staticOffset_; // 静态偏移量
-    size_t chainId;       // 所属链的ID
-    PointerDir* parent;   // 指向父节点的指针（上一层）
     PointerDir* child;    // 指向子节点的指针（下一层）
 
     PointerDir(Address val = 0, Address addr = 0, Offset off = 0, StaticOffset staticOff = StaticOffset(0, nullptr))
-        : value(val), address(addr), offset(off), staticOffset_(staticOff), chainId(0), parent(nullptr), child(nullptr) {};
-    PointerDir(Address val = 0, Address addr = 0,PointerDir* p = nullptr, PointerDir* c = nullptr)
+        : value(val), address(addr), offset(off), staticOffset_(staticOff), child(nullptr) {};
+    PointerDir(Address val = 0, Address addr = 0,PointerDir* c = nullptr)
         : value(val), address(addr) {
             offset = 0;
             staticOffset_ = StaticOffset(0, nullptr);
-            parent = p;
             child = c;
         };
 
@@ -139,27 +136,7 @@ struct SimplePointerChain {
     SimplePointerChain() : targetAddress(0), baseAddress(0), baseRegion(nullptr), staticOffset(0) {}
 };
 
-// 指针链节点
-struct ChainNode {
-    std::vector<PointerData> pointers;
-    uint32_t level;   // 链中的层级
-    
-    ChainNode(uint32_t lvl = 0) : level(lvl) {}
-    
-    // 添加新方法
-    void sortPointers() {
-        std::sort(pointers.begin(), pointers.end(), 
-                 [](const PointerData& a, const PointerData& b) {
-                     return a.address < b.address;
-                 });
-    }
-    
-    void optimizeMemory() {
-        // 优化内存使用
-        std::vector<PointerData> temp(pointers);
-        pointers.swap(temp);
-    }
-};
+
 
 // 链信息结构
 template <typename T>
@@ -167,5 +144,7 @@ struct ChainInfo {
     std::vector<std::vector<T>> counts;
     std::vector<std::vector<PointerDir*>> contents;
 };
+
+
 
 } // namespace memchainer

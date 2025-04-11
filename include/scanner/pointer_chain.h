@@ -7,32 +7,39 @@
 
 namespace memchainer {
 
+// 指针链节点结构
+struct PointerChainNode {
+    Address address;      // 指针地址
+    Address value;        // 指针值
+    Offset offset;        // 偏移量
+    StaticOffset staticOffset; // 静态偏移量
+    // bool isStatic;        // 是否是静态指针
+    // bool isValid;         // 是否是有效指针
+
+    PointerChainNode(Address addr = 0, Address val = 0, Offset off = 0, 
+                    StaticOffset staticOff = StaticOffset(0, nullptr))
+        : address(addr), value(val), offset(off), 
+          staticOffset(staticOff) {}
+};
+
 // 定义指针链类
 class PointerChain {
 public:
     PointerChain();
     ~PointerChain();
 
-    // 添加一个新层级的节点
-    void addLevel(uint32_t level);
+    // 构建指针链
+    void buildPointerChain(std::vector<std::vector<PointerRange>>& dirs);
 
-    // 添加指针数据到指定层级
-    void addPointerData(uint32_t level, const PointerData& data);
+    void printChain();
 
-    // 获取指定层级的所有指针
-    const std::vector<PointerData>& getPointersAtLevel(uint32_t level) const;
+    // 获取总链数
+    size_t getTotalChains() const { return totalChains_; }
 
-    // 获取总层数
-    uint32_t getLevelCount() const;
 
-    // 获取总指针链数量
-    uint32_t getChainCount() const;
 
-    // 获取特定链的偏移量
-    std::vector<Offset> getChainOffsets(uint32_t chainIndex) const;
-
-    // 检查是否为空
-    bool isEmpty() const;
+    // 清空所有数据
+    void clear();
 
     // 序列化到二进制数据
     std::vector<uint8_t> serialize() const;
@@ -40,42 +47,24 @@ public:
     // 从二进制数据反序列化
     static std::shared_ptr<PointerChain> deserialize(const std::vector<uint8_t>& data);
 
-    // 添加预分配空间的方法
-    void reservePointers(uint32_t level, size_t count);
-    
-    // 优化内存使用方法
+    // 检查是否为空
+    bool isEmpty() const { return chains_.empty(); }
+
+    // 优化内存使用
     void optimizeMemoryUsage();
-    
-    // 数据压缩和解压缩方法
-    void compressData();
-    void decompressData();
-    
-    // 检查是否已压缩
-    bool isCompressed() const { return isCompressed_; }
-    
-    // 提取前N条链
-    std::shared_ptr<PointerChain> extractTopChains(uint32_t count) const;
-
+    // 存储所有指针链
+    // 使用双向链表存储，便于查找
+    std::vector<std::list<PointerChainNode>> chains_;
 private:
-    // 存储每个层级的指针数据
-    std::vector<ChainNode> levels_;
-    
-    // 缓存的链计数
-    mutable uint32_t cachedChainCount_;
-    mutable bool isCountValid_;
-    
-    // 计算链数量
-    void recalculateChainCount() const;
 
-    // 压缩数据结构
-    struct CompressedLevel {
-        Address baseAddress;
-        std::vector<uint32_t> addressOffsets;
-        std::vector<Offset> valueOffsets;
-        std::vector<uint32_t> refCounts;
-    };
+
+    // 最大层级
+    size_t maxLevel_ = 0;
     
-    std::vector<CompressedLevel> compressedData_;
+    // 总链数
+    size_t totalChains_ = 0;
+    
+    // 压缩标志
     bool isCompressed_ = false;
 };
 
