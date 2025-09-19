@@ -27,21 +27,10 @@ set(ANDROID_NDK ${CMAKE_ANDROID_NDK})
 
 ##################### ⬇输出文件重定向⬇ #####################
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY 
-    ${CMAKE_SOURCE_DIR}/outputs/${CMAKE_ANDROID_ARCH_ABI}/
+    ${CMAKE_SOURCE_DIR}/outputs/
 ) # 重定向输出产物(可执行文件)
 ##################### ⬆输出文件重定向⬆ #####################
 
-
-# 设置构建类型
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-
-# 编译选项
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
 # 包含目录
 include_directories(

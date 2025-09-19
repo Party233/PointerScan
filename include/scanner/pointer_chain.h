@@ -28,6 +28,7 @@ public:
     PointerChain();
     ~PointerChain();
 
+    void CalPointerChainMem( std::vector<std::vector<PointerRange>>& dirs);        
     // 构建指针链
     void buildPointerChain(std::vector<std::vector<PointerRange>>& dirs);
 

@@ -18,8 +18,8 @@
 namespace memchainer {
 
 // 全局变量实例化
-std::vector<MemoryRegion*> memoryRegionList;
-std::vector<MemoryRegion*> staticRegionList;
+std::vector<MemoryRegion*> memoryRegionList;//待扫描数据段
+std::vector<MemoryRegion*> staticRegionList;//静态区域段
 
 
 bool isFind(std::string name , std::string str){
@@ -73,15 +73,16 @@ int MemoryMap::getRegionFilter() const {
 std::vector<MemoryRegion*> MemoryMap::getFilteredRegions()  {
     std::vector<MemoryRegion*> result;
 
-    applySmartFilter();
-    
-    for (const auto& region : memoryRegions_) {
-        // 如果区域被标记为不可过滤且符合过滤条件
-        if (!region->isFilterable && (region->type & regionFilter_)) {
-            result.push_back(region);
+    for (auto* region : memoryRegions_) {
+       
+        //unknow全部过滤
+        if (region->type==Unknown) {
+          region->isFilterable=true;
+          continue;
         }
+        result.push_back(region);
+    
     }
-   
     
     return result;
 }
@@ -163,19 +164,20 @@ bool MemoryMap::parseProcessMaps(ProcessId pid) {
         // 创建并添加内存区域
         auto* region = new MemoryRegion(startAddr, endAddr, type, pathname.c_str(), count);
         memoryRegions_.push_back(region);
-        memoryRegionList.push_back(region); // 添加到全局列表
+        //memoryRegionList.push_back(region); // 添加到全局列表
     }
     
     return true;
 }
 
 bool MemoryMap::parseProcessModule() {
-    // 解析进程模块信息，类似于原项目的parse_process_module函数
+    
     if (currentPid_ <= 0) {
         return false;
     }
     
     //printRegionInfo();
+    //静态区域 xa cb（bss cd
     auto  static_type = MemoryRegionType::Code_app | MemoryRegionType::C_data ;
 
        staticRegionList.clear();
@@ -224,80 +226,34 @@ bool MemoryMap::parseProcessModule() {
     return true;
 }
 
+//只需分出 a ca cb cd xa o？ 其他全扔unknow用不上
 int MemoryMap::determineRegionType(const std::string& name, const std::string& permissions) {
-    // 根据名称和权限确定内存区域类型，匹配原项目的分类
-    
-    int type = MemoryRegionType::Unknown;
-    
-    // 堆
-    if (name == "[heap]") {
-        type = MemoryRegionType::C_heap;
-    }
-    // Java堆
-    else if ( isFind(name, "dalvik") && isFind(name, "art") ) {
-        type = MemoryRegionType::Java_heap;
-    }
-    // 栈
-    else if ( isFind(name, "[stack]") || isFind(name, "[stack:") ) {
-        type = MemoryRegionType::Stack;
-    }
+  
     // 匿名映射 || isFind(name, "[anon:")
-    else if (name.empty()  || 
-    name == "[anonymous]") {
-        type = MemoryRegionType::Anonymous;
+ if ((name.empty()  || name == " ")&&permissions[0]=='r') {
+    return MemoryRegionType::Anonymous;
     }
-    //libc_malloc 
-    else if (isFind(name, "libc_malloc"))
+    else if (isFind(name, "[anon:libc_malloc")|| isFind(name, "[anon:scudo:"))
     {
-        type = MemoryRegionType::C_alloc;
-    }
+        return MemoryRegionType::C_alloc;
+    } 
     //cd
     else if (isFind(name, "/data/app/")  && isFind(permissions, "xp") && isFind(name, ".so"))
     {
-        type = MemoryRegionType::Code_app;
+        return MemoryRegionType::Code_app;
     }
     else if (isFind(name, "[anon:.bss]"))
     {
-        type = MemoryRegionType::C_bss;
-    }
-    else if (isFind(name, "/system/framework/"))
-    {
-        type = MemoryRegionType::Code_system;
+        return MemoryRegionType::C_bss;
     }
     else if (isFind(name, "/data/app/") && isFind(name, ".so"))
     {
-        type = MemoryRegionType::C_data;
+        return MemoryRegionType::C_data;
     }
-    // 视频内存
-    else if (isFind(name, "/dev/kgsl-3d0")) {
-        type = MemoryRegionType::Video;
-    }
-    // 共享内存
-    else if (name.find("ashmem") != std::string::npos) {
-        type = MemoryRegionType::Ashmem;
-    }
-    //bad
-    else if (name.find("/system/fonts/") != std::string::npos) {
-        type = MemoryRegionType::Bad;
-    }
-    // 根据权限判断其他类型
-    else if (permissions.length() >= 4) {
-        // // 如果有执行权限，视为代码段
-        // if (permissions[2] == 'xp') {
-        //     type = MemoryRegionType::Code_app;
-        // }
-        // // 可写数据段
-        // else if (permissions[1] == 'w') {
-        //     type = MemoryRegionType::C_data;
-        // }
-        // // 只读数据段，可能是BSS
-        // else {
-        //     type = MemoryRegionType::C_bss;
-        // }
-        type = MemoryRegionType::Other;
-    }
+
+
     
-    return type;
+    return MemoryRegionType::Unknown;
 }
 
 int MemoryMap::getPermissionProtFlags(const std::string& permissions) {
@@ -318,49 +274,6 @@ int MemoryMap::getPermissionProtFlags(const std::string& permissions) {
     return prot;
 }
 
-void MemoryMap::applySmartFilter() {
-   
-    // 首先将所有区域设为不过滤
-    for (auto* region : memoryRegions_) {
-        region->isFilterable = false;
-    }
-    
-    // 分析已加载模块，智能调整过滤规则
-    for (auto* region : memoryRegions_) {
-        //size_t regionSize = region->endAddress - region->startAddress;
-        
-        // 智能过滤规则
-        // 1. 代码段为基质头，保留
-        if (region->type == Code_app ) {
-            region->isFilterable = false;
-        }
-        
-        // 2. Java堆区域，过滤
-        else if (region->type == Java_heap) {
-            region->isFilterable = true;
-        }
-        
-        // // 3. 大型匿名区域（大于50MB）可能是图像缓冲区等，过滤
-        // else if (region->type == Anonymous && regionSize > 50 * 1024 * 1024) {
-        //     region->isFilterable = true;
-        // }
-        
-        // 4. 栈区域保留
-        else if (region->type == Stack) {
-            region->isFilterable = false;
-        }
-        
-        // 5. 共享内存区域通常不包含指针链，过滤
-        else if (region->type == Ashmem) {
-            region->isFilterable = true;
-        }
-        
-        // 6. 可能是主模块数据段，保留
-        else if (region->type == C_data ) {
-            region->isFilterable = false;
-        }
-    }
-    
-}
+
 
 } // namespace memchainer

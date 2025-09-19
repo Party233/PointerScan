@@ -36,14 +36,13 @@ public:
                     const std::shared_ptr<MemoryMap>& memMap);
 
     // 查找指针
-    uint32_t findPointers(Address startAddress, Address endAddress);
+    uint32_t findPointers();
     
     // 扫描特定区域内的指针
     void scanRegionForPointers(Address startAddress, Address endAddress);
         // 过滤内存区域指针
     void Search1Pointers(
         std::vector<std::vector<PointerRange>>& dirs,
-        std::vector<PointerRange>& ranges,
         PointerData* pointers,
         const ScanOptions& options
         );
@@ -67,7 +66,7 @@ private:
     std::shared_ptr<MemoryAccess> memoryAccess_;
     std::shared_ptr<MemoryMap> memoryMap_;
     std::vector<PointerAllData*> pointerCache_;
-    std::unordered_map<Address, PointerData*> addressMap_;
+    //std::unordered_map<Address, PointerData*> addressMap_;
     //PointerDataPool dataPool_;
 };
 

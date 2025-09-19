@@ -102,7 +102,7 @@ struct PointerDir {
     Address address;      // 地址
     Offset offset;        // 偏移量
     StaticOffset staticOffset_; // 静态偏移量
-    PointerDir* child;    // 指向子节点的指针（下一层）
+    PointerDir* child;    // 指向子节点的指针（下一层） 因为是从底往上 所以这个其实是父节点
 
     PointerDir(Address val = 0, Address addr = 0, Offset off = 0, StaticOffset staticOff = StaticOffset(0, nullptr))
         : value(val), address(addr), offset(off), staticOffset_(staticOff), child(nullptr) {};

@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
     };
 
     std::cout << "开始扫描潜在指针..." << std::endl;
-    scanner->findPointers(0, 0);
+    scanner->findPointers();
     //exit(0);
     // 执行扫描
     auto result = scanner->scanPointerChain(targetAddresses[0], options, progressCallback);
