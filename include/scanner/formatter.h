@@ -29,6 +29,7 @@ public:
 private:
     // 格式化完整指针链
     std::string formatChain(const std::list<PointerChainNode>& chains);
+    std::string formatChainToSimple(const std::list<PointerChainNode>& chains);
     
     // 格式化静态节点
     std::string formatStaticNode(const PointerChainNode& node);

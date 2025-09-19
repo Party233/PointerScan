@@ -27,7 +27,7 @@ void PointerFormatter::formatToConsole(const std::shared_ptr<PointerChain>& chai
     const auto& chains = chain->getChains();
     for (size_t i = 0; i < displayCount; ++i) {
         std::cout << "链 " << (i + 1) << ":" << std::endl;
-        std::cout << "  " << formatChain(chains[i]) << std::endl;
+        std::cout << "  " << formatChainToSimple(chains[i]) << std::endl;
         printSeparator(std::cout);
     }
 }
@@ -106,6 +106,32 @@ std::string PointerFormatter::formatStaticNode(const PointerChainNode& node) {
     
     return ss.str();
 }
+
+//极简输出
+std::string PointerFormatter::formatChainToSimple(const std::list<PointerChainNode>& chains) {
+    if (chains.empty()) {
+        return "空指针链";
+    }
+
+    std::stringstream ss;
+    ss << std::hex;
+    auto it = chains.begin();
+    // 格式化静态头节点
+    ss << it->staticOffset.region->name << ":";
+    ss << "+0x" <<  it->staticOffset.staticOffset;
+    ss << "->0x" << it->offset;
+    ++it;
+    
+
+    // 格式化其余节点
+    for (; it != chains.end(); ++it) {
+        ss << "->0x" << it->offset;
+    }
+    ss << std::dec;
+    return ss.str();
+}
+
+
 
 std::string PointerFormatter::formatPointerNode(const PointerChainNode& node) {
     std::stringstream ss;
