@@ -127,7 +127,7 @@ void PointerChain::printChain() {
             // std::cout << "address: " << node.address 
             // << " ->value: " << node.value 
             // << " offset: " << node.offset;
-            printf("address: %lx ->value: %lx offset: %lx\n", node.address, node.value, -node.offset);
+            printf("address: %lx ->value: %lx offset: %lx\n", node.address, node.value, node.offset);
             std::cout << std::endl;
             
         }

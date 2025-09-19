@@ -142,9 +142,9 @@ void PointerScanner::Search1Pointers(
                                       [&](PointerAllData* p, Address addr) {
                                           return p->value < addr ;
                                       });
-        auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr + options.maxOffset,
+        auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr ,
                                     [&](Address addr, PointerAllData* p) {
-                                        return addr < p->value;
+                                        return addr <= p->value;
                                     });
       std::vector<PointerRange> ranges;
         // 如果区域中有指针
@@ -244,10 +244,10 @@ std::shared_ptr<PointerChain> PointerScanner::scanPointerChain(
                                                 {
                                                     return p->value < addr;
                                                 });
-                auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr + options.maxOffset,
+                auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr ,
                                               [&](Address addr, PointerAllData *p)
                                               {
-                                                  return addr  < p->value;
+                                                  return addr  <= p->value;
                                               });
                 //开始构造
                 if (startIt <= endIt && startIt != pointerCache_.end())
