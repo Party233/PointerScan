@@ -203,18 +203,18 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    //std::cout << "找到 " << result->getChainCount() << " 条指针链" << std::endl;
+    std::cout << "找到 " << result->getTotalChains() << " 条指针链" << std::endl;
 
     // // 保存结果到文件
     // std::string outputFile = parser.getOptionValue("file", "pointer_chains.txt");
 
     // // 格式化结果
-    // PointerFormatter formatter;
+    PointerFormatter formatter;
     // formatter.formatToTextFile(result, outputFile);
     // std::cout << "结果已保存到: " << outputFile << std::endl;
 
     // // 显示前10条链
-    // formatter.formatToConsole(result, 10);
+    formatter.formatToConsole(result, 100);
 
     // // 如果指定了缓存目录
     // if (parser.hasOption("cache-dir")) {

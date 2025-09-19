@@ -51,12 +51,16 @@ public:
     // 检查是否为空
     bool isEmpty() const { return chains_.empty(); }
 
+    // 获取指针链数据（用于格式化输出）
+    const std::vector<std::list<PointerChainNode>>& getChains() const { return chains_; }
+
     // 优化内存使用
     void optimizeMemoryUsage();
+
+private:
     // 存储所有指针链
     // 使用双向链表存储，便于查找
     std::vector<std::list<PointerChainNode>> chains_;
-private:
 
 
     // 最大层级

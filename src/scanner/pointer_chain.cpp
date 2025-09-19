@@ -1,4 +1,4 @@
-#include "scanner/pointer_chain.h"
+
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -84,31 +84,19 @@ void PointerChain::buildPointerChain( std::vector<std::vector<PointerRange>>& di
            // std::cout << "level: " << le++;
         }
         if(chain.size() > 1){
-        //      // 打印静态头
-        //  std::cout << std::hex << "static head: " << chain.front().address 
-        //  << " value: " << chain.front().value 
-        //  << " offset:0x" << chain.front().offset 
-        //  << " staticOffset:0x" << chain.front().staticOffset.staticOffset
-        //  << " region: " << chain.front().staticOffset.region->name << std::endl;
-      
- 
-        //  for (auto& node : chain) {
-        //      std::cout << "address: " << node.address 
-        //      << " ->value: " << node.value 
-        //      << " offset: " << node.offset;
-        //      std::cout << std::endl;
-             
-        //  }
-        //  std::cout << "----------------" << std::endl;
         chains_.push_back(std::move(chain));
         }
-       // std::cout << "----------------" << std::endl;
+      
         
     }
 
+    // 更新总链数
+    totalChains_ = chains_.size();
+    
     // 打印统计信息
-    printChain();
-    std::cout << "找到 " << std::dec << staticPointers.size() << " 个静态指针" << std::endl;
+    //printChain();
+    // std::cout << "找到 " << std::dec << staticPointers.size() << " 个静态指针" << std::endl;
+    // std::cout << "构建了 " << std::dec << totalChains_ << " 条有效指针链" << std::endl;
 }
 
 

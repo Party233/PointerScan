@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <algorithm>
 
 namespace memchainer {
 
@@ -20,18 +21,14 @@ void PointerFormatter::formatToConsole(const std::shared_ptr<PointerChain>& chai
     size_t displayCount = maxChains > 0 ? std::min(maxChains, chain->getTotalChains()) : chain->getTotalChains();
     
     std::cout << "找到 " << displayCount << " 条指针链" << std::endl;
-    std::cout << "----------------------------------------" << std::endl;
+    printSeparator(std::cout);
 
     // 显示每条链
+    const auto& chains = chain->getChains();
     for (size_t i = 0; i < displayCount; ++i) {
-        std::cout << "链 " << i + 1 << ":" << std::endl;
-        
-        const auto& chainNodes = chain->chains_[i];
-        for (const auto& node : chainNodes) {
-            std::cout << "  " << formatNode(node) << std::endl;
-        }
-        
-        std::cout << "----------------------------------------" << std::endl;
+        std::cout << "链 " << (i + 1) << ":" << std::endl;
+        std::cout << "  " << formatChain(chains[i]) << std::endl;
+        printSeparator(std::cout);
     }
 }
 
@@ -46,62 +43,93 @@ bool PointerFormatter::formatToTextFile(const std::shared_ptr<PointerChain>& cha
     }
 
     file << "指针链总数: " << chain->getTotalChains() << std::endl;
+    printSeparator(file);
 
-    file << "----------------------------------------" << std::endl;
-
+    const auto& chains = chain->getChains();
     for (size_t i = 0; i < chain->getTotalChains(); ++i) {
-        file << "链 " << i + 1 << ":" << std::endl;
-        
-        const auto& chainNodes = chain->chains_[i];
-        for (const auto& node : chainNodes) {
-            file << "  " << formatNode(node) << std::endl;
-        }
-        
-        file << "----------------------------------------" << std::endl;
+        file << "链 " << (i + 1) << ":" << std::endl;
+        file << "  " << formatChain(chains[i]) << std::endl;
+        printSeparator(file);
     }
 
     return true;
 }
 
-std::string PointerFormatter::formatNode(const PointerChainNode& node) const {
+std::string PointerFormatter::formatChain(const std::list<PointerChainNode>& chains) {
+    if (chains.empty()) {
+        return "空指针链";
+    }
+
+    std::stringstream ss;
+    auto it = chains.begin();
+    
+    // 格式化静态头节点
+    if (it != chains.end()) {
+        ss << formatStaticNode(*it) << std::endl;
+        ++it;
+    }
+
+    // 格式化其余节点
+    for (; it != chains.end(); ++it) {
+        ss << formatPointerNode(*it) << std::endl;
+    }
+        
+    return ss.str();
+}
+
+std::string PointerFormatter::formatStaticNode(const PointerChainNode& node) {
     std::stringstream ss;
     
-    // 地址
     if (format_ == "hex" || format_ == "both") {
-        ss << "地址: 0x" << std::hex << std::setw(16) << std::setfill('0') << node.address;
+        ss << "static head: 0x" << std::hex << std::setw(16) << std::setfill('0') << node.address
+           << " value: 0x" << std::setw(16) << std::setfill('0') << node.value
+           << " offset: 0x" << std::setw(8) << std::setfill('0') << node.offset;
+        
+        if (showStaticOffset_ && node.staticOffset.region) {
+            ss << " staticOffset: 0x" << std::setw(8) << std::setfill('0') << node.staticOffset.staticOffset
+               << " region: " << node.staticOffset.region->name;
+        }
+        
         if (format_ == "both") {
-            ss << " (" << std::dec << node.address << ")";
+            ss << " (" << std::dec << node.address << ", " << node.value << ", " << node.offset << ")";
         }
     } else {
-        ss << "地址: " << node.address;
-    }
-    
-    // 值
-    if (format_ == "hex" || format_ == "both") {
-        ss << " 值: 0x" << std::hex << std::setw(16) << std::setfill('0') << node.value;
-        if (format_ == "both") {
-            ss << " (" << std::dec << node.value << ")";
+        ss << "static head: " << node.address
+           << " value: " << node.value
+           << " offset: " << node.offset;
+        
+        if (showStaticOffset_ && node.staticOffset.region) {
+            ss << " staticOffset: " << node.staticOffset.staticOffset
+               << " region: " << node.staticOffset.region->name;
         }
-    } else {
-        ss << " 值: " << node.value;
-    }
-    
-    // 偏移量
-    if (format_ == "hex" || format_ == "both") {
-        ss << " 偏移: 0x" << std::hex << std::setw(8) << std::setfill('0') << node.offset;
-        if (format_ == "both") {
-            ss << " (" << std::dec << node.offset << ")";
-        }
-    } else {
-        ss << " 偏移: " << node.offset;
-    }
-    
-    // 静态偏移信息
-    if (showStaticOffset_ && node.staticOffset.staticOffset > 0) {
-        ss << " " << formatStaticOffset(node.staticOffset);
     }
     
     return ss.str();
+}
+
+std::string PointerFormatter::formatPointerNode(const PointerChainNode& node) {
+    std::stringstream ss;
+    
+    if (format_ == "hex" || format_ == "both") {
+        ss << "address: 0x" << std::hex << std::setw(16) << std::setfill('0') << node.address
+           << " -> value: 0x" << std::setw(16) << std::setfill('0') << node.value
+           << " offset: 0x" << std::setw(8) << std::setfill('0') << node.offset;
+        
+        if (format_ == "both") {
+            ss << " (" << std::dec << node.address << ", " << node.value << ", " << node.offset << ")";
+        }
+    } else {
+        ss << "address: " << node.address
+           << " -> value: " << node.value
+           << " offset: " << node.offset;
+    }
+    
+    return ss.str();
+}
+
+template<typename Stream>
+void PointerFormatter::printSeparator(Stream& stream) const {
+    stream << "----------------------------------------" << std::endl;
 }
 
 std::string PointerFormatter::formatStaticOffset(const StaticOffset& staticOffset) const {
@@ -143,5 +171,9 @@ std::string PointerFormatter::formatRegion(const MemoryRegion* region) const {
     
     return ss.str();
 }
+
+// 显式实例化模板方法
+template void PointerFormatter::printSeparator<std::ostream>(std::ostream& stream) const;
+template void PointerFormatter::printSeparator<std::ofstream>(std::ofstream& stream) const;
 
 } // namespace memchainer

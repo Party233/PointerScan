@@ -3,8 +3,6 @@
 #include "scanner/pointer_chain.h"
 #include <string>
 #include <memory>
-#include <fstream>
-#include <iomanip>
 
 namespace memchainer {
 
@@ -29,14 +27,24 @@ public:
     void setShowStaticOffset(bool show) { showStaticOffset_ = show; }
 
 private:
-    // 格式化单个指针节点
-    std::string formatNode(const PointerChainNode& node) const;
+    // 格式化完整指针链
+    std::string formatChain(const std::list<PointerChainNode>& chains);
+    
+    // 格式化静态节点
+    std::string formatStaticNode(const PointerChainNode& node);
+    
+    // 格式化指针节点
+    std::string formatPointerNode(const PointerChainNode& node);
 
     // 格式化静态偏移信息
     std::string formatStaticOffset(const StaticOffset& staticOffset) const;
 
     // 格式化内存区域信息
     std::string formatRegion(const MemoryRegion* region) const;
+    
+    // 打印分隔符
+    template<typename Stream>
+    void printSeparator(Stream& stream) const;
 
     // 输出格式
     std::string format_ = "hex"; // 可选: "hex", "dec", "both"
