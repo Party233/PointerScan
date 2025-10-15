@@ -2,14 +2,9 @@
 
 #include "memory/mem_access.h"
 #include "memory/mem_map.h"
-#include "memory/file_cache.h"
-#include "scanner/pointer_chain.h"
 #include <functional>
-#include <string>
 #include <memory>
 #include <vector>
-#include <unordered_map>
-#include <mutex>
 
 namespace memchainer {
 
@@ -40,12 +35,11 @@ public:
     
     // 扫描特定区域内的指针
     void scanRegionForPointers(Address startAddress, Address endAddress);
-        // 过滤内存区域指针
+
     void Search1Pointers(
-        std::vector<std::vector<PointerRange>>& dirs,
-        PointerData* pointers,
-        const ScanOptions& options
-        );
+        PointerRange &dirs, std::vector<uint64_t> pointers,
+        const ScanOptions &options);
+    
     // 扫描指针链
     int scanPointerChain(
         Address& targetAddress,
@@ -54,7 +48,7 @@ public:
 
 
     // 判断地址是否在静态区域内
-    StaticOffset calculateStaticOffset(Address addr);
+    StaticOffset* calculateStaticOffset(Address addr);
 
     // 检查地址是否有效
     bool isValidAddress(Address& addr);
@@ -63,7 +57,6 @@ public:
     const std::vector<std::list<PointerChainNode>>& getChains() const { return chains_; }
 
 private:
-
     // 文件缓存系统
     //std::shared_ptr<FileCache> fileCache_;
     std::shared_ptr<MemoryAccess> memoryAccess_;

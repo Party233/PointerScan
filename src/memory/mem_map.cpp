@@ -187,7 +187,7 @@ bool MemoryMap::parseProcessModule() {
         auto pos = name.find_last_of("/");
         if (pos!=std::string::npos)
         {
-           name = name.substr(pos);
+           name = name.substr(pos+1);
            name = name + "[" + std::to_string(region->count) + "]";
            memset(region->name,0,sizeof(region->name));
            strncpy(region->name,name.c_str(),name.length());

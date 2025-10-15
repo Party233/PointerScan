@@ -1,21 +1,12 @@
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <iostream>
-#include <fstream>
 #include <cstring>
 #include <sys/user.h>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
 #include <functional>
-#include <iomanip>
-#include <future>
-#include <cmath>
-#include <map>
 
 #include "common/types.h"
-#include "common/thread_pool.h" 
-// #include "memory/memory_cache.h"  
 #include "scanner.h"
 
 #include <sys/types.h>
@@ -89,7 +80,7 @@ void PointerScanner::scanRegionForPointers(Address startAddress, Address endAddr
     for (Address addr = startAddress; addr < endAddress; addr += PAGE_SIZE) {
         size_t readSize = std::min<size_t>(PAGE_SIZE, endAddress - addr);
         
-        // 读取内存块
+        // 读取内存块  todo 批量读取 process_vm_readv支持读取多页
         if (!memoryAccess_->read(addr, buffer.data(), readSize, ec)) {
             continue;  // 如果读取失败，跳过此块
         }
@@ -112,7 +103,7 @@ void PointerScanner::scanRegionForPointers(Address startAddress, Address endAddr
                 Address pointerAddr = addr + i;
                 auto* pointerallData = new PointerAllData(
                                                 pointerAddr, 
-                                            value,startAddress,0,
+                                            value,
                                             calculateStaticOffset(pointerAddr));
                 pointerCache_.push_back(pointerallData);
                    
@@ -127,59 +118,13 @@ void PointerScanner::scanRegionForPointers(Address startAddress, Address endAddr
 
 }
 
-
-
-
-void PointerScanner::Search1Pointers(
-    std::vector<std::vector<PointerRange>>& dirs,
-    PointerData* pointers,
-    const ScanOptions& options
-    ) {
-        auto BaseAddr = pointers->address;
-        // 二分查找在内存区域中的指针 pointerCache_是按照value排序的
-        //第一层是找到地址进行匹配  小找小 大找大
-        auto startIt = std::lower_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr- options.maxOffset,
-                                      [&](PointerAllData* p, Address addr) {
-                                          return p->value <= addr ;
-                                      });
-        auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr ,
-                                    [&](Address addr, PointerAllData* p) {
-                                        return addr <= p->value;
-                                    });
-      std::vector<PointerRange> ranges;
-        // 如果区域中有指针
-        if ( startIt != pointerCache_.end()
-         && endIt != pointerCache_.end()
-         && startIt <= endIt) {
-            std::vector<PointerDir> regionResults; 
-            // 添加到已处理列表
-            for (auto it = startIt; it != endIt; ++it) {
-                // 为每个指针创建PointerDir并初始化新字段
-                Offset offset = static_cast<Offset>(pointers->address - (*it)->value);
-  
-                PointerDir dir((*it)->value, (*it)->address,offset, (*it)->staticOffset_);
-                // 第一层的 父节点 置为空，链在目标地址结束
-                dir.child = nullptr;
-                regionResults.push_back(std::move(dir));
-            }            
-            std::cout << "第一层指针数量: " << regionResults.size() << std::endl;
-            // 创建指针范围
-            ranges.emplace_back(0, BaseAddr, std::move(regionResults));
-        } else {
-            std::cout << "没有找到第一层指针 程序退出" << std::endl;
-            exit(0);
-        }
-      
-        dirs[0]=ranges;
-}
-
 // 判断地址是否在静态区域内
-StaticOffset PointerScanner::calculateStaticOffset(Address addr) {
+StaticOffset* PointerScanner::calculateStaticOffset(Address addr) {
     // 遍历所有静态区域
     for ( auto* region : staticRegionList) {
         // 检查地址是否落在这个区域内
         if (addr >= region->startAddress && addr < region->endAddress) {
-            return StaticOffset(addr - region->startAddress, region);
+            return new StaticOffset(addr - region->startAddress, region);
         }
     }
      
@@ -192,174 +137,265 @@ StaticOffset PointerScanner::calculateStaticOffset(Address addr) {
     // {
     //     return StaticOffset(addr - (*it)->startAddress, *it);
     // }
-    return StaticOffset(0, nullptr);
+    return new StaticOffset(0, nullptr);
 }
 
-int PointerScanner::scanPointerChain(
-    Address& targetAddress,
-    const ScanOptions& options,
-    const ProgressCallback& progressCb) {
 
-    // 准备数据结构
-    std::vector<std::vector<PointerRange>> dirs(options.maxDepth + 1);
-    std::vector<PointerDir> staticPointers;
+void PointerScanner::Search1Pointers(
+    PointerRange &dirs, std::vector<uint64_t> pointers,
+    const ScanOptions &options) {
+  auto BaseAddr = pointers[0];
+  uint64_t startAddr = BaseAddr - options.maxOffset;
+  uint64_t endAddr = BaseAddr;
+  printf("第0层查找范围: %lx - %lx\n", (unsigned long)startAddr, (unsigned long)endAddr);
+  // 二分查找在内存区域中的指针 pointerCache_是按照value排序的
+  // 第一层是找到地址进行匹配  小找小 大找大
+  auto startIt = std::lower_bound(pointerCache_.begin(), pointerCache_.end(),
+  startAddr,
+                                [&](PointerAllData* p, Address addr) {
+                                    return p->value < addr ;
+                                });
+  auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(),
+  endAddr ,
+                              [&](Address addr, PointerAllData* p) {
+                                  return addr < p->value;
+                              });
 
-
-
-
-    
-    auto startTime = std::chrono::high_resolution_clock::now();
-    std::cout << "开始扫描指针链..." << std::endl;
-    
-    // 第一级：目标地址
-    auto* data = new PointerData(targetAddress, 0);
-
-    // 处理第0层（目标地址） 
-    Search1Pointers(dirs, data, options);
-
-    // 开始逐层扫描
-    for (size_t level = 1; level <= options.maxDepth; ++level)
-    {
-        // 获取上层的指针数量
-        auto& LastLevelDirsData = dirs[level - 1];
-        size_t prevLevelDirCount = LastLevelDirsData.size();
-        if (prevLevelDirCount == 0)
-        {
-            break; // 如果上一层没有指针，则终止
-        }
-
-        // 创建当前层的结果容器
-        dirs[level].clear();
-        // 遍历dirs[level - 1]中的指针 进行扫描内存 获取新一轮的指针
-        for (auto& pointerRange : LastLevelDirsData)
-        {
-            for (auto& p : pointerRange.results)
-            {
-
-             
-                if (p.staticOffset_.staticOffset > 0)
-                {
-                    staticPointers.push_back(p);
-                    continue;//直接在这里加入到指针链结果中，后面就不要在扫描了
-                }
-                auto BaseAddr = p.address;
-                // 开始二分查找指针内存 进行扫描
-                auto startIt = std::lower_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr- options.maxOffset,
-                                                [&](PointerAllData *p, Address addr)
-                                                {
-                                                    return p->value <= addr;
-                                                });
-                auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr ,
-                                              [&](Address addr, PointerAllData *p)
-                                              {
-                                                  return addr  <= p->value;
-                                              });
-                //开始构造
-                if (startIt <= endIt && startIt != pointerCache_.end())
-                {
-                  
-                    // 如果区域中有指针
-                    std::vector<PointerRange> ranges;
-                    std::vector<PointerDir> regionResults;
-                    regionResults.reserve(std::distance(startIt, endIt));
-                    // 遍历找到的所有可能指针
-                    for (auto it = startIt; it != endIt; ++it)
-                    {
-                        
-                        PointerAllData *potentialPointer = *it;
-
-                        // 计算偏移量
-                        Offset offset = static_cast<Offset>(BaseAddr - potentialPointer->value);
-                        
-                        // 创建新的PointerDir并初始化字段
-                        PointerDir dir(potentialPointer->value,
-                                       potentialPointer->address,
-                                       offset,
-                                       potentialPointer->staticOffset_);
-                        //父节点
-                        dir.child = &p;
-                        
-                        regionResults.push_back(std::move(dir));
-                    } // for
-                  
-                    if (!regionResults.empty()) {
-                        ranges.emplace_back(level, BaseAddr, std::move(regionResults));
-                        // 立刻插入到当前层，避免覆盖其他 p 的结果
-                        dirs[level].insert(dirs[level].end(), ranges.begin(), ranges.end());
-                        ranges.clear();
-                    }
-                } // 二分数据
-
-            } // for p
-
-            
-
-        } // for dir[level]
-
-        // 报告进度
-        if (progressCb) {
-            progressCb(level, options.maxDepth, static_cast<float>(level) / options.maxDepth);
-        }
-    } // for level
-
-    // // 创建最终的指针链结果
-    // auto result = std::make_shared<PointerChain>();
-    // result->buildPointerChain(dirs);
-
-    //遍历最后层 加入到指针链结果中
-    for(auto& p : dirs[options.maxDepth])
-    {
-       for(auto& p2 : p.results)
-       {
-        if(p2.staticOffset_.staticOffset > 0)
-        {
-            staticPointers.push_back(p2);
-        }
-       }
-    }
-
-    
-   if (staticPointers.empty()) {
-        std::cout << "没有找到静态指针" << std::endl;
-        return 0;
-    }
-    std::cout << "找到 " << staticPointers.size() << " 个静态指针" << std::endl;
-    
-    // 从静态指针开始构建指针链
-    for ( auto& dir : staticPointers) {
-        std::list<PointerChainNode> chain;
-        PointerChainNode node(dir.address, dir.value, dir.offset, dir.staticOffset_);
-        chain.push_back(node);
-        // 开始从顶端遍历子节点构建指针链
-        auto dir_ = dir;
-        int le =0;
-        while (dir_.child != nullptr) {
-            PointerChainNode childnode(dir_.child->address,
-             dir_.child->value, dir_.child->offset, dir_.child->staticOffset_);
-            chain.push_back(childnode);
-            dir_ = *dir_.child;
-            
-           // std::cout << "level: " << le++;
-        }
-        if(chain.size() > 1){
-        chains_.push_back(std::move(chain));
-        }
+  PointerRange ranges;
+  // 如果区域中有指针
+  // startIt == endIt 时可能是：1) 都指向唯一匹配元素（需要处理） 2)
+  // 都为end()（不处理）
+  if (startIt != pointerCache_.end() && startIt <= endIt && (*startIt)->value <= endAddr) {
+    std::vector<PointerDir> regionResults;
+    // 添加到已处理列表
+    // 使用 <= 确保当 startIt == endIt 时（唯一匹配元素）也能被处理
+    for (auto it = startIt; it != pointerCache_.end() && it <= endIt && (*it)->value <= endAddr; ++it) {
+      // 为每个指针创建PointerDir并初始化新字段
+      Offset offset = static_cast<Offset>(BaseAddr - (*it)->value);
       
-        
+      PointerDir dir(*it, offset);
+      // 第一层的 父节点 置为空，链在目标地址结束
+      dir.child = nullptr;
+      regionResults.push_back(std::move(dir));
     }
 
+    printf("第0层指针数量: %zu\n", regionResults.size());
+    // 创建指针范围
+    //ranges.emplace_back(0, BaseAddr, std::move(regionResults));
+    ranges.results = std::move(regionResults);
+    ranges.level = 0;
+    ranges.address = BaseAddr;
+  } else {
+    printf("没有找到第0层指针 程序退出");
+    // exit(0);
+  }
 
-
-    auto endTime = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-    std::cout << "指针链扫描完成，耗时: "<<std::dec << duration << "ms" << std::endl;
-    
-
-    delete data;
-    
-    return staticPointers.size();
+  dirs = ranges;
 }
 
+int PointerScanner::scanPointerChain(Address &targetAddress,
+                                     const ScanOptions &options,
+                                     const ProgressCallback &progressCb) {
+  // 清空之前的结果
+  chains_.clear();
+
+  // 打印options参数
+  printf("options参数: maxDepth: %d, maxOffset: %d, limitResults: %d, "
+         "resultLimit: %d\n",
+         options.maxDepth, options.maxOffset, options.limitResults,
+         options.resultLimit);
+
+  auto startTime = std::chrono::high_resolution_clock::now();
+  auto lastProgressTime = startTime;
+
+  // 第0级：目标地址
+  std::vector<uint64_t> pointers;
+  pointers.push_back(targetAddress);
+
+  printf("....开始扫描第0层指针链...\n");
+  // 处理第0层（目标地址）- 找到所有指向目标地址的指针
+  PointerRange level0Results;
+  Search1Pointers(level0Results, pointers, options);
+
+  if (level0Results.results.empty()) {
+    printf("第0层未找到任何指针\n");
+    return 0;
+  }
+
+  size_t totalLevel0Branches = level0Results.results.size();
+  printf("第0层找到 %zu 个指针，开始深度递归扫描...\n", totalLevel0Branches);
+
+  // 统计信息
+  size_t totalChainsFound = 0;
+  size_t totalNodesProcessed = 0;
+  size_t processedLevel0Branches = 0;
+  
+  // 进度报告控制
+  const size_t progressReportInterval = 5000; // 每处理5000个节点报告一次
+  size_t nextProgressReport = progressReportInterval;
+
+  // 临时存储找到的所有静态指针链，最后统一保存到 chains_
+  std::vector<std::list<PointerChainNode>> tempChains;
+  tempChains.reserve(1000); // 预分配空间，减少重新分配
+
+  // 深度优先搜索递归函数
+  std::function<void(PointerDir *, int)> dfsSearch =
+      [&](PointerDir *currentNode, int currentDepth) {
+        // 检查结果数量限制
+        if (options.limitResults && totalChainsFound >= options.resultLimit) {
+          return;
+        }
+
+        // 检查深度限制
+        if (currentDepth > options.maxDepth) {
+          return;
+        }
+
+        // 如果当前节点是静态指针，立即构建完整指针链并暂存
+        // 注意：必须在递归栈还有效时立即构建，因为中间节点使用的是栈内存
+        if (currentNode->Data->staticOffset_->staticOffset > 0) {
+          // 构建完整指针链（从静态地址到目标地址）
+          std::list<PointerChainNode> chain;
+
+          // 从当前静态节点开始，沿着child指针向下遍历
+          PointerDir *node = currentNode;
+          while (node != nullptr) {
+            PointerChainNode chainNode(node->Data->address, node->Data->value,
+                                       node->offset, node->Data->staticOffset_);
+            chain.push_back(chainNode);
+            node = node->child;
+          }
+
+          // 保存有效的指针链
+          tempChains.push_back(std::move(chain));
+          totalChainsFound++;
+
+          // 每找到100条链报告一次
+          if (totalChainsFound % 100 == 0) {
+            printf("已找到 %zu 条有效指针链\n", totalChainsFound);
+          }
+
+          return; // 找到静态指针，终止这条路径的搜索
+        }
+
+        // 获取当前节点的地址，搜索指向它的指针
+        Address baseAddr = currentNode->Data->address;
+        Address startAddr = baseAddr - options.maxOffset;
+        Address endAddr = baseAddr;
+
+        // 二分查找可能的父指针
+        auto startIt = std::lower_bound(
+            pointerCache_.begin(), pointerCache_.end(), startAddr,
+            [&](PointerAllData *p, Address addr) { return p->value < addr; });
+        auto endIt = std::upper_bound(
+            pointerCache_.begin(), pointerCache_.end(), endAddr,
+            [&](Address addr, PointerAllData *p) { return addr < p->value; });
+
+        if (startIt == pointerCache_.end() || startIt > endIt ||
+            (*startIt)->value > endAddr) {
+          return; // 没有找到父指针，终止这条路径
+        }
+
+        // 计算分支数量并更新统计
+        size_t branchCount = std::distance(startIt, endIt);
+        totalNodesProcessed += branchCount;
+
+        // 遍历所有可能的父指针，递归搜索
+        for (auto it = startIt; it <= endIt && it != pointerCache_.end() && (*it)->value <= endAddr;
+             ++it) {
+          // 检查是否需要提前终止
+          if (options.limitResults && totalChainsFound >= options.resultLimit) {
+            break;
+          }
+
+          PointerAllData *parentPointer = *it;
+
+          // 计算偏移量
+          Offset offset = static_cast<Offset>(baseAddr - parentPointer->value);
+
+          // 创建临时节点（不分配堆内存，使用栈内存）
+          PointerDir tempNode(parentPointer, offset);
+          tempNode.child = currentNode;
+
+          // 递归搜索下一层
+          dfsSearch(&tempNode, currentDepth + 1);
+        }
+
+        // 定期报告进度（基于节点处理数量）
+        if (progressCb && totalNodesProcessed >= nextProgressReport) {
+          auto currentTime = std::chrono::high_resolution_clock::now();
+          auto timeSinceLastProgress = std::chrono::duration_cast<std::chrono::milliseconds>(
+              currentTime - lastProgressTime).count();
+          
+          // 至少间隔500ms才报告一次，避免过于频繁
+          if (timeSinceLastProgress >= 500) {
+            // 计算进度：基于已处理的第0层分支数量
+            float branchProgress = static_cast<float>(processedLevel0Branches) / totalLevel0Branches;
+            
+            // 综合考虑深度和分支进度
+            float overallProgress = branchProgress * 0.9f + 
+                                   (static_cast<float>(currentDepth) / options.maxDepth) * 0.1f;
+            
+            progressCb(currentDepth, options.maxDepth, overallProgress);
+            
+            lastProgressTime = currentTime;
+            nextProgressReport = totalNodesProcessed + progressReportInterval;
+          }
+        }
+      };
+
+  // 从第0层的每个指针开始深度优先搜索
+  printf("开始遍历 %zu 个第0层分支...\n", totalLevel0Branches);
+  
+  for (size_t i = 0; i < level0Results.results.size(); ++i) {
+    auto &firstLevelPointer = level0Results.results[i];
+
+    // 每处理一定数量的分支，报告一次进度
+    if (progressCb && i % 10 == 0) {
+      float progress = static_cast<float>(i) / totalLevel0Branches;
+      progressCb(1, options.maxDepth, progress);
+    }
+
+    // 直接调用dfsSearch，统一由递归函数处理静态指针检查
+    dfsSearch(&firstLevelPointer, 1);
+    processedLevel0Branches++;
+
+    // 检查是否达到结果限制
+    if (options.limitResults && totalChainsFound >= options.resultLimit) {
+      printf("已达到结果限制 %d，停止扫描\n", options.resultLimit);
+      break;
+    }
+  }
+
+  auto endTime = std::chrono::high_resolution_clock::now();
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime)
+          .count();
+
+  printf("========== 指针链扫描完成 ==========\n");
+  printf("找到有效指针链: %zu 条\n", totalChainsFound);
+  printf("处理节点总数: %zu\n", totalNodesProcessed);
+  printf("扫描耗时: %lld ms\n", duration);
+
+  // 统一保存所有找到的指针链到 chains_
+  if (!tempChains.empty()) {
+    printf("开始保存 %zu 条指针链到结果集...\n", tempChains.size());
+
+    // 预分配空间，避免多次扩容
+    chains_.reserve(chains_.size() + tempChains.size());
+
+    // 移动所有链到最终结果
+    for (auto &chain : tempChains) {
+      chains_.push_back(std::move(chain));
+    }
+
+    printf("指针链保存完成，当前结果集共 %zu 条\n", chains_.size());
+  } else {
+    printf("未找到任何有效指针链\n");
+  }
+
+  return static_cast<int>(chains_.size());
+}
 
 // 检查地址是否合法的辅助函数
 bool PointerScanner::isValidAddress(Address& addr) {

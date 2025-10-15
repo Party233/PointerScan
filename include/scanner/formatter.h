@@ -38,7 +38,7 @@ private:
     std::string formatPointerNode(const PointerChainNode& node);
 
     // 格式化静态偏移信息
-    std::string formatStaticOffset(const StaticOffset& staticOffset) const;
+    std::string formatStaticOffset(const StaticOffset* staticOffset) const;
 
     // 格式化内存区域信息
     std::string formatRegion(const MemoryRegion* region) const;

@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
     std::cout << "结果已保存到: " << outputFile << std::endl;
 
     // // 显示前10条链
-    //formatter.formatToConsole(result, 100);
+    //formatter.formatToConsole(scanner->getChains(), 100);
 
     // // 如果指定了缓存目录
     // if (parser.hasOption("cache-dir")) {

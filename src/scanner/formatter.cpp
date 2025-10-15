@@ -83,9 +83,9 @@ std::string PointerFormatter::formatStaticNode(const PointerChainNode& node) {
            << " value: 0x" << std::setw(16) << std::setfill('0') << node.value
            << " offset: 0x" << std::setw(8) << std::setfill('0') << node.offset;
         
-        if (showStaticOffset_ && node.staticOffset.region) {
-            ss << " staticOffset: 0x" << std::setw(8) << std::setfill('0') << node.staticOffset.staticOffset
-               << " region: " << node.staticOffset.region->name;
+        if (showStaticOffset_ && node.staticOffset->region) {
+            ss << " staticOffset: 0x" << std::setw(8) << std::setfill('0') << node.staticOffset->staticOffset
+               << " region: " << node.staticOffset->region->name;
         }
         
         if (format_ == "both") {
@@ -96,9 +96,9 @@ std::string PointerFormatter::formatStaticNode(const PointerChainNode& node) {
            << " value: " << node.value
            << " offset: " << node.offset;
         
-        if (showStaticOffset_ && node.staticOffset.region) {
-            ss << " staticOffset: " << node.staticOffset.staticOffset
-               << " region: " << node.staticOffset.region->name;
+        if (showStaticOffset_ && node.staticOffset->region) {
+            ss << " staticOffset: " << node.staticOffset->staticOffset
+               << " region: " << node.staticOffset->region->name;
         }
     }
     
@@ -115,8 +115,8 @@ std::string PointerFormatter::formatChainToSimple(const std::list<PointerChainNo
     ss << std::hex;
     auto it = chains.begin();
     // 格式化静态头节点
-    ss << it->staticOffset.region->name << ":";
-    ss << "+0x" <<  it->staticOffset.staticOffset;
+    ss << it->staticOffset->region->name << ":";
+    ss << "+0x" <<  it->staticOffset->staticOffset;
     ss << "->0x" << it->offset;
     ++it;
     
@@ -156,20 +156,20 @@ void PointerFormatter::printSeparator(Stream& stream) const {
     stream << "----------------------------------------" << std::endl;
 }
 
-std::string PointerFormatter::formatStaticOffset(const StaticOffset& staticOffset) const {
+std::string PointerFormatter::formatStaticOffset(const StaticOffset* staticOffset) const {
     std::stringstream ss;
     
     if (format_ == "hex" || format_ == "both") {
-        ss << "静态偏移: 0x" << std::hex << std::setw(8) << std::setfill('0') << staticOffset.staticOffset;
+        ss << "静态偏移: 0x" << std::hex << std::setw(8) << std::setfill('0') << staticOffset->staticOffset;
         if (format_ == "both") {
-            ss << " (" << std::dec << staticOffset.staticOffset << ")";
+            ss << " (" << std::dec << staticOffset->staticOffset << ")";
         }
     } else {
-        ss << "静态偏移: " << staticOffset.staticOffset;
+        ss << "静态偏移: " << staticOffset->staticOffset;
     }
     
-    if (showDetails_ && staticOffset.region) {
-        ss << " " << formatRegion(staticOffset.region);
+    if (showDetails_ && staticOffset->region) {
+        ss << " " << formatRegion(staticOffset->region);
     }
     
     return ss.str();

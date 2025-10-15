@@ -12,7 +12,7 @@ namespace memchainer {
 
 // 使用明确大小的类型
 using Address = uint64_t;
-using Offset = int64_t;
+using Offset = int32_t;
 using MemorySize = uint64_t;
 using ProcessId = int32_t;
 
@@ -87,30 +87,25 @@ struct StaticOffset
 // 指针数据结构
 struct PointerAllData {
     Address address;      // 指针地址
-    Address value;        // 指针指向的值
-    Address startAddress; // 起始地址
-    Offset offset;        // 相对偏移
-    StaticOffset staticOffset_; // 静态偏移量
+    Address value;        // 指针指向的值   
+    StaticOffset* staticOffset_; // 静态偏移量
 
-    PointerAllData(Address addr, Address val, Address start, Offset off = 0, StaticOffset staticOff = StaticOffset(0, nullptr))
-        : address(addr), value(val), startAddress(start), offset(off), staticOffset_(staticOff) {}
+    PointerAllData(Address addr, Address val, StaticOffset* staticOff = nullptr)
+        : address(addr), value(val),  staticOffset_(staticOff) {}
 };
 
 // 指针方向结构
 struct PointerDir {
-    Address value;        // 指针值
-    Address address;      // 地址
-    Offset offset;        // 偏移量
-    StaticOffset staticOffset_; // 静态偏移量
+    PointerAllData* Data;
     PointerDir* child;    // 指向子节点的指针（下一层） 因为是从底往上 所以这个其实是父节点
+    Offset offset;        // 偏移量
 
-    PointerDir(Address val = 0, Address addr = 0, Offset off = 0, StaticOffset staticOff = StaticOffset(0, nullptr))
-        : value(val), address(addr), offset(off), staticOffset_(staticOff), child(nullptr) {};
-    PointerDir(Address val = 0, Address addr = 0,PointerDir* c = nullptr)
-        : value(val), address(addr) {
+    PointerDir(PointerAllData* val = 0, Offset off = 0)
+            : Data(val), offset(off),child(nullptr) {};
+    PointerDir(PointerAllData* val = 0,PointerDir* c = nullptr)
+        : Data(val), child(c) {
             offset = 0;
-            staticOffset_ = StaticOffset(0, nullptr);
-            child = c;
+          
         };
 
 };
@@ -123,6 +118,8 @@ struct PointerRange {
 
     PointerRange(int lvl, Address addr, std::vector<PointerDir>&& res = {})
         : level(lvl), address(addr), results(std::move(res)) {}
+    PointerRange()
+        : level(0), address(0), results(std::vector<PointerDir>()) {}
 };
 
 
@@ -132,34 +129,14 @@ struct PointerChainNode {
     Address address;      // 指针地址
     Address value;        // 指针值
     Offset offset;        // 偏移量
-    StaticOffset staticOffset; // 静态偏移量
+    StaticOffset* staticOffset; // 静态偏移量
     // bool isStatic;        // 是否是静态指针
     // bool isValid;         // 是否是有效指针
 
     PointerChainNode(Address addr = 0, Address val = 0, Offset off = 0, 
-                    StaticOffset staticOff = StaticOffset(0, nullptr))
+                    StaticOffset* staticOff = nullptr)
         : address(addr), value(val), offset(off), 
           staticOffset(staticOff) {}
-};
-
-// 简化的指针链结构，用于最终结果输出
-struct SimplePointerChain {
-    std::vector<PointerDir*> nodes;  // 从静态指针到目标地址的节点
-    Address targetAddress;          // 目标地址
-    Address baseAddress;            // 基址
-    MemoryRegion* baseRegion;       // 基址所在区域
-    uint64_t staticOffset;          // 静态偏移
-
-    SimplePointerChain() : targetAddress(0), baseAddress(0), baseRegion(nullptr), staticOffset(0) {}
-};
-
-
-
-// 链信息结构
-template <typename T>
-struct ChainInfo {
-    std::vector<std::vector<T>> counts;
-    std::vector<std::vector<PointerDir*>> contents;
 };
 
 

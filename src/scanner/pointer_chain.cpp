@@ -54,7 +54,7 @@ void PointerChain::buildPointerChain( std::vector<std::vector<PointerRange>>& di
         }
         for (const auto& range : dirs[level]) {
             for (const auto& dir : range.results) {
-                if (dir.staticOffset_.staticOffset != 0) {
+                if (dir.Data->staticOffset_->staticOffset != 0) {
                     // 找到静态指针
                     staticPointers.push_back(dir);
                 }
@@ -70,14 +70,14 @@ void PointerChain::buildPointerChain( std::vector<std::vector<PointerRange>>& di
     // 从静态指针开始构建指针链
     for ( auto& dir : staticPointers) {
         std::list<PointerChainNode> chain;
-        PointerChainNode node(dir.address, dir.value, dir.offset, dir.staticOffset_);
+        PointerChainNode node(dir.Data->address, dir.Data->value, dir.offset, dir.Data->staticOffset_);
         chain.push_back(node);
         // 开始从顶端遍历子节点构建指针链
         auto dir_ = dir;
         int le =0;
         while (dir_.child != nullptr) {
-            PointerChainNode childnode(dir_.child->address,
-             dir_.child->value, dir_.child->offset, dir_.child->staticOffset_);
+            PointerChainNode childnode(dir_.child->Data->address,
+             dir_.child->Data->value, dir_.child->offset, dir_.child->Data->staticOffset_);
             chain.push_back(childnode);
             dir_ = *dir_.child;
             
@@ -106,8 +106,8 @@ void PointerChain::printChain() {
         std::cout << std::hex << "static head: " << chain.front().address 
         << " value: " << chain.front().value 
         << " offset:0x" << chain.front().offset 
-        << " staticOffset:0x" << chain.front().staticOffset.staticOffset
-        << " region: " << chain.front().staticOffset.region->name << std::endl;
+        << " staticOffset:0x" << chain.front().staticOffset->staticOffset
+        << " region: " << chain.front().staticOffset->region->name << std::endl;
         //弹出静态头
         chain.pop_front();
 
