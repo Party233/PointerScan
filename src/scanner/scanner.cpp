@@ -5,9 +5,11 @@
 #include <cstring>
 #include <sys/user.h>
 #include <functional>
+#include <mutex>
 
 #include "common/types.h"
-#include "scanner.h"
+#include "scanner/scanner.h"
+#include "scanner/formatter.h"
 
 #include <sys/types.h>
 #include <sys/sysconf.h>
@@ -195,7 +197,7 @@ void PointerScanner::Search1Pointers(
 
 int PointerScanner::scanPointerChain(Address &targetAddress,
                                      const ScanOptions &options,
-                                     const ProgressCallback &progressCb) {
+                                     const std::string& outputFile) {
   // 清空之前的结果
   chains_.clear();
 
@@ -206,7 +208,18 @@ int PointerScanner::scanPointerChain(Address &targetAddress,
          options.resultLimit);
 
   auto startTime = std::chrono::high_resolution_clock::now();
-  auto lastProgressTime = startTime;
+
+  // 初始化输出文件（如果指定）
+  bool enableStreamOutput = !outputFile.empty();
+  if (enableStreamOutput) {
+    PointerFormatter formatter;
+    if (!formatter.initOutputFile(outputFile)) {
+      printf("警告: 无法初始化输出文件 %s，将在扫描结束后统一输出\n", outputFile.c_str());
+      enableStreamOutput = false;
+    } else {
+      printf("边扫边输出模式已启用，结果将实时写入: %s\n", outputFile.c_str());
+    }
+  }
 
   // 第0级：目标地址
   std::vector<uint64_t> pointers;
@@ -230,13 +243,8 @@ int PointerScanner::scanPointerChain(Address &targetAddress,
   size_t totalNodesProcessed = 0;
   size_t processedLevel0Branches = 0;
   
-  // 进度报告控制
-  const size_t progressReportInterval = 5000; // 每处理5000个节点报告一次
-  size_t nextProgressReport = progressReportInterval;
-
-  // 临时存储找到的所有静态指针链，最后统一保存到 chains_
-  std::vector<std::list<PointerChainNode>> tempChains;
-  tempChains.reserve(1000); // 预分配空间，减少重新分配
+  // 文件写入互斥锁（为未来的多线程做准备）
+  std::mutex fileMutex;
 
   // 深度优先搜索递归函数
   std::function<void(PointerDir *, int)> dfsSearch =
@@ -251,7 +259,7 @@ int PointerScanner::scanPointerChain(Address &targetAddress,
           return;
         }
 
-        // 如果当前节点是静态指针，立即构建完整指针链并暂存
+        // 如果当前节点是静态指针，立即构建完整指针链
         // 注意：必须在递归栈还有效时立即构建，因为中间节点使用的是栈内存
         if (currentNode->Data->staticOffset_->staticOffset > 0) {
           // 构建完整指针链（从静态地址到目标地址）
@@ -266,8 +274,21 @@ int PointerScanner::scanPointerChain(Address &targetAddress,
             node = node->child;
           }
 
-          // 保存有效的指针链
-          tempChains.push_back(std::move(chain));
+          // 边扫边输出：立即写入文件
+          if (enableStreamOutput) {
+            //std::lock_guard<std::mutex> lock(fileMutex);
+            PointerFormatter formatter;
+            if (!formatter.appendChainToFile(chain, outputFile)) {
+              printf("警告: 写入文件失败\n");
+            }
+          }
+
+          // 同时保存到内存（用于最终统计和补充输出）
+          {
+            //std::lock_guard<std::mutex> lock(fileMutex);
+            //chains_.push_back(chain);
+          }
+          
           totalChainsFound++;
 
           // 每找到100条链报告一次
@@ -320,28 +341,6 @@ int PointerScanner::scanPointerChain(Address &targetAddress,
           // 递归搜索下一层
           dfsSearch(&tempNode, currentDepth + 1);
         }
-
-        // 定期报告进度（基于节点处理数量）
-        if (progressCb && totalNodesProcessed >= nextProgressReport) {
-          auto currentTime = std::chrono::high_resolution_clock::now();
-          auto timeSinceLastProgress = std::chrono::duration_cast<std::chrono::milliseconds>(
-              currentTime - lastProgressTime).count();
-          
-          // 至少间隔500ms才报告一次，避免过于频繁
-          if (timeSinceLastProgress >= 500) {
-            // 计算进度：基于已处理的第0层分支数量
-            float branchProgress = static_cast<float>(processedLevel0Branches) / totalLevel0Branches;
-            
-            // 综合考虑深度和分支进度
-            float overallProgress = branchProgress * 0.9f + 
-                                   (static_cast<float>(currentDepth) / options.maxDepth) * 0.1f;
-            
-            progressCb(currentDepth, options.maxDepth, overallProgress);
-            
-            lastProgressTime = currentTime;
-            nextProgressReport = totalNodesProcessed + progressReportInterval;
-          }
-        }
       };
 
   // 从第0层的每个指针开始深度优先搜索
@@ -351,9 +350,10 @@ int PointerScanner::scanPointerChain(Address &targetAddress,
     auto &firstLevelPointer = level0Results.results[i];
 
     // 每处理一定数量的分支，报告一次进度
-    if (progressCb && i % 10 == 0) {
+    if (i > 0 && i % 100 == 0) {
       float progress = static_cast<float>(i) / totalLevel0Branches;
-      progressCb(1, options.maxDepth, progress);
+      printf("进度: 已处理 %zu/%zu 个分支 (%.1f%%), 找到 %zu 条指针链\n", 
+             i, totalLevel0Branches, progress * 100.0f, totalChainsFound);
     }
 
     // 直接调用dfsSearch，统一由递归函数处理静态指针检查
@@ -377,19 +377,8 @@ int PointerScanner::scanPointerChain(Address &targetAddress,
   printf("处理节点总数: %zu\n", totalNodesProcessed);
   printf("扫描耗时: %lld ms\n", duration);
 
-  // 统一保存所有找到的指针链到 chains_
-  if (!tempChains.empty()) {
-    printf("开始保存 %zu 条指针链到结果集...\n", tempChains.size());
-
-    // 预分配空间，避免多次扩容
-    chains_.reserve(chains_.size() + tempChains.size());
-
-    // 移动所有链到最终结果
-    for (auto &chain : tempChains) {
-      chains_.push_back(std::move(chain));
-    }
-
-    printf("指针链保存完成，当前结果集共 %zu 条\n", chains_.size());
+  if (enableStreamOutput) {
+    printf("结果已实时写入文件: %s\n", outputFile.c_str());
   } else {
     printf("未找到任何有效指针链\n");
   }

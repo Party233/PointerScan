@@ -53,6 +53,34 @@ bool PointerFormatter::formatToTextFile(const std::vector<std::list<PointerChain
     return true;
 }
 
+bool PointerFormatter::initOutputFile(const std::string& filename) {
+    std::ofstream file(filename, std::ios::trunc);  // 清空文件
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    file << "# MemoryChainer 指针链扫描结果" << std::endl;
+    file << "# 格式: [模块+偏移] -> [偏移1] -> [偏移2] -> ... -> 目标地址" << std::endl;
+    printSeparator(file);
+    
+    return true;
+}
+
+bool PointerFormatter::appendChainToFile(const std::list<PointerChainNode>& chain, const std::string& filename) {
+    if (chain.empty()) {
+        return false;
+    }
+    
+    std::ofstream file(filename, std::ios::app);  // 追加模式
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    file << formatChainToSimple(chain) << std::endl;
+    
+    return true;
+}
+
 std::string PointerFormatter::formatChain(const std::list<PointerChainNode>& chains) {
     if (chains.empty()) {
         return "空指针链";

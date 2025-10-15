@@ -16,6 +16,12 @@ public:
     
     // 格式化为文本文件
     bool formatToTextFile(const std::vector<std::list<PointerChainNode>>& chains, const std::string& filename);
+    
+    // 追加单条指针链到文件（边扫边输出）
+    bool appendChainToFile(const std::list<PointerChainNode>& chain, const std::string& filename);
+    
+    // 初始化输出文件（写入文件头）
+    bool initOutputFile(const std::string& filename);
 
     // 设置输出格式
     void setFormat(const std::string& format) { format_ = format; }

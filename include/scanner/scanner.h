@@ -40,11 +40,11 @@ public:
         PointerRange &dirs, std::vector<uint64_t> pointers,
         const ScanOptions &options);
     
-    // 扫描指针链
+    // 扫描指针链（支持边扫边输出）
     int scanPointerChain(
         Address& targetAddress,
         const ScanOptions& options,
-        const ProgressCallback& progressCb = nullptr);
+        const std::string& outputFile = "");
 
 
     // 判断地址是否在静态区域内
