@@ -140,7 +140,7 @@ void PointerScanner::Search1Pointers(
         //第一层是找到地址进行匹配  小找小 大找大
         auto startIt = std::lower_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr- options.maxOffset,
                                       [&](PointerAllData* p, Address addr) {
-                                          return p->value < addr ;
+                                          return p->value <= addr ;
                                       });
         auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr ,
                                     [&](Address addr, PointerAllData* p) {
@@ -195,13 +195,17 @@ StaticOffset PointerScanner::calculateStaticOffset(Address addr) {
     return StaticOffset(0, nullptr);
 }
 
-std::shared_ptr<PointerChain> PointerScanner::scanPointerChain(
+int PointerScanner::scanPointerChain(
     Address& targetAddress,
     const ScanOptions& options,
     const ProgressCallback& progressCb) {
 
     // 准备数据结构
     std::vector<std::vector<PointerRange>> dirs(options.maxDepth + 1);
+    std::vector<PointerDir> staticPointers;
+
+
+
 
     
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -235,14 +239,15 @@ std::shared_ptr<PointerChain> PointerScanner::scanPointerChain(
              
                 if (p.staticOffset_.staticOffset > 0)
                 {
-                    continue;
+                    staticPointers.push_back(p);
+                    continue;//直接在这里加入到指针链结果中，后面就不要在扫描了
                 }
                 auto BaseAddr = p.address;
                 // 开始二分查找指针内存 进行扫描
                 auto startIt = std::lower_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr- options.maxOffset,
                                                 [&](PointerAllData *p, Address addr)
                                                 {
-                                                    return p->value < addr;
+                                                    return p->value <= addr;
                                                 });
                 auto endIt = std::upper_bound(pointerCache_.begin(), pointerCache_.end(), BaseAddr ,
                                               [&](Address addr, PointerAllData *p)
@@ -297,9 +302,54 @@ std::shared_ptr<PointerChain> PointerScanner::scanPointerChain(
         }
     } // for level
 
-    // 创建最终的指针链结果
-    auto result = std::make_shared<PointerChain>();
-    result->buildPointerChain(dirs);
+    // // 创建最终的指针链结果
+    // auto result = std::make_shared<PointerChain>();
+    // result->buildPointerChain(dirs);
+
+    //遍历最后层 加入到指针链结果中
+    for(auto& p : dirs[options.maxDepth])
+    {
+       for(auto& p2 : p.results)
+       {
+        if(p2.staticOffset_.staticOffset > 0)
+        {
+            staticPointers.push_back(p2);
+        }
+       }
+    }
+
+    
+   if (staticPointers.empty()) {
+        std::cout << "没有找到静态指针" << std::endl;
+        return 0;
+    }
+    std::cout << "找到 " << staticPointers.size() << " 个静态指针" << std::endl;
+    
+    // 从静态指针开始构建指针链
+    for ( auto& dir : staticPointers) {
+        std::list<PointerChainNode> chain;
+        PointerChainNode node(dir.address, dir.value, dir.offset, dir.staticOffset_);
+        chain.push_back(node);
+        // 开始从顶端遍历子节点构建指针链
+        auto dir_ = dir;
+        int le =0;
+        while (dir_.child != nullptr) {
+            PointerChainNode childnode(dir_.child->address,
+             dir_.child->value, dir_.child->offset, dir_.child->staticOffset_);
+            chain.push_back(childnode);
+            dir_ = *dir_.child;
+            
+           // std::cout << "level: " << le++;
+        }
+        if(chain.size() > 1){
+        chains_.push_back(std::move(chain));
+        }
+      
+        
+    }
+
+
+
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
     std::cout << "指针链扫描完成，耗时: "<<std::dec << duration << "ms" << std::endl;
@@ -307,7 +357,7 @@ std::shared_ptr<PointerChain> PointerScanner::scanPointerChain(
 
     delete data;
     
-    return result;
+    return staticPointers.size();
 }
 
 

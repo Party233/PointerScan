@@ -11,20 +11,19 @@ PointerFormatter::PointerFormatter() = default;
 
 PointerFormatter::~PointerFormatter() = default;
 
-void PointerFormatter::formatToConsole(const std::shared_ptr<PointerChain>& chain, size_t maxChains) {
-    if (!chain || chain->isEmpty()) {
+void PointerFormatter::formatToConsole(const std::vector<std::list<PointerChainNode>>& chains, size_t maxChains) {
+    if (chains.empty()) {
         std::cout << "没有找到有效的指针链" << std::endl;
         return;
     }
 
     // 计算实际要显示的链数
-    size_t displayCount = maxChains > 0 ? std::min(maxChains, chain->getTotalChains()) : chain->getTotalChains();
+    size_t displayCount = maxChains > 0 ? std::min(maxChains, chains.size()) : chains.size();
     
     std::cout << "找到 " << displayCount << " 条指针链" << std::endl;
     printSeparator(std::cout);
 
     // 显示每条链
-    const auto& chains = chain->getChains();
     for (size_t i = 0; i < displayCount; ++i) {
         std::cout << "链 " << (i + 1) << ":" << std::endl;
         std::cout << "  " << formatChainToSimple(chains[i]) << std::endl;
@@ -32,8 +31,8 @@ void PointerFormatter::formatToConsole(const std::shared_ptr<PointerChain>& chai
     }
 }
 
-bool PointerFormatter::formatToTextFile(const std::shared_ptr<PointerChain>& chain, const std::string& filename) {
-    if (!chain || chain->isEmpty()) {
+bool PointerFormatter::formatToTextFile(const std::vector<std::list<PointerChainNode>>& chains, const std::string& filename) {
+    if (chains.empty()) {
         return false;
     }
 
@@ -42,14 +41,13 @@ bool PointerFormatter::formatToTextFile(const std::shared_ptr<PointerChain>& cha
         return false;
     }
 
-    file << "指针链总数: " << chain->getTotalChains() << std::endl;
+    file << "指针链总数: " << chains.size() << std::endl;
     printSeparator(file);
 
-    const auto& chains = chain->getChains();
-    for (size_t i = 0; i < chain->getTotalChains(); ++i) {
-        file << "链 " << (i + 1) << ":" << std::endl;
-        file << "  " << formatChain(chains[i]) << std::endl;
-        printSeparator(file);
+    for (size_t i = 0; i < chains.size(); ++i) {
+       // file << "链 " << (i + 1) << ":" << std::endl;
+        file << formatChainToSimple(chains[i]) << std::endl;
+       // printSeparator(file);
     }
 
     return true;

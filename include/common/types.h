@@ -125,6 +125,23 @@ struct PointerRange {
         : level(lvl), address(addr), results(std::move(res)) {}
 };
 
+
+
+// 指针链节点结构
+struct PointerChainNode {
+    Address address;      // 指针地址
+    Address value;        // 指针值
+    Offset offset;        // 偏移量
+    StaticOffset staticOffset; // 静态偏移量
+    // bool isStatic;        // 是否是静态指针
+    // bool isValid;         // 是否是有效指针
+
+    PointerChainNode(Address addr = 0, Address val = 0, Offset off = 0, 
+                    StaticOffset staticOff = StaticOffset(0, nullptr))
+        : address(addr), value(val), offset(off), 
+          staticOffset(staticOff) {}
+};
+
 // 简化的指针链结构，用于最终结果输出
 struct SimplePointerChain {
     std::vector<PointerDir*> nodes;  // 从静态指针到目标地址的节点

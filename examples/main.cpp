@@ -197,24 +197,24 @@ int main(int argc, char *argv[])
     // 执行扫描
     auto result = scanner->scanPointerChain(targetAddresses[0], options, progressCallback);
 
-    if (!result || result->isEmpty())
+    if (result == 0)
     {
         std::cerr << "未找到有效的指针链" << std::endl;
         return 1;
     }
 
-    std::cout << "找到 " << result->getTotalChains() << " 条指针链" << std::endl;
+   // std::cout << "找到 " << result->getTotalChains() << " 条指针链" << std::endl;
 
     // // 保存结果到文件
-    // std::string outputFile = parser.getOptionValue("file", "pointer_chains.txt");
+    std::string outputFile = parser.getOptionValue("file", "pointer_chains.txt");
 
     // // 格式化结果
     PointerFormatter formatter;
-    // formatter.formatToTextFile(result, outputFile);
-    // std::cout << "结果已保存到: " << outputFile << std::endl;
+    formatter.formatToTextFile(scanner->getChains(), outputFile);
+    std::cout << "结果已保存到: " << outputFile << std::endl;
 
     // // 显示前10条链
-    formatter.formatToConsole(result, 100);
+    //formatter.formatToConsole(result, 100);
 
     // // 如果指定了缓存目录
     // if (parser.hasOption("cache-dir")) {

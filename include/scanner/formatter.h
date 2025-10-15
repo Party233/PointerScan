@@ -12,10 +12,10 @@ public:
     ~PointerFormatter();
     
     // 格式化为控制台输出
-    void formatToConsole(const std::shared_ptr<PointerChain>& chain, size_t maxChains = 0);
+    void formatToConsole(const std::vector<std::list<PointerChainNode>>& chains, size_t maxChains = 0);
     
     // 格式化为文本文件
-    bool formatToTextFile(const std::shared_ptr<PointerChain>& chain, const std::string& filename);
+    bool formatToTextFile(const std::vector<std::list<PointerChainNode>>& chains, const std::string& filename);
 
     // 设置输出格式
     void setFormat(const std::string& format) { format_ = format; }

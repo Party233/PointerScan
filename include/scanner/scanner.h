@@ -47,7 +47,7 @@ public:
         const ScanOptions& options
         );
     // 扫描指针链
-    std::shared_ptr<PointerChain> scanPointerChain(
+    int scanPointerChain(
         Address& targetAddress,
         const ScanOptions& options,
         const ProgressCallback& progressCb = nullptr);
@@ -59,6 +59,9 @@ public:
     // 检查地址是否有效
     bool isValidAddress(Address& addr);
 
+    // 获取指针链
+    const std::vector<std::list<PointerChainNode>>& getChains() const { return chains_; }
+
 private:
 
     // 文件缓存系统
@@ -68,6 +71,12 @@ private:
     std::vector<PointerAllData*> pointerCache_;
     //std::unordered_map<Address, PointerData*> addressMap_;
     //PointerDataPool dataPool_;
+
+            // 存储所有指针链
+    // 使用双向链表存储，便于查找
+    std::vector<std::list<PointerChainNode>> chains_;
+
+
 };
 
 } // namespace memchainer
