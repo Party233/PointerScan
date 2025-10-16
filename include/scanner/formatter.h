@@ -20,6 +20,9 @@ public:
     // 追加单条指针链到文件（边扫边输出）
     bool appendChainToFile(const std::list<PointerChainNode>& chain, const std::string& filename);
     
+    // 批量追加多条指针链到文件（高性能批量写入）
+    bool appendChainsToFile(const std::vector<std::list<PointerChainNode>>& chains, const std::string& filename);
+    
     // 初始化输出文件（写入文件头）
     bool initOutputFile(const std::string& filename);
 

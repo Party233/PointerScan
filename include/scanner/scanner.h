@@ -4,6 +4,7 @@
 #include "memory/mem_map.h"
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 namespace memchainer {
@@ -55,19 +56,24 @@ public:
 
     // 获取指针链
     const std::vector<std::list<PointerChainNode>>& getChains() const { return chains_; }
+    
+    // 使用哈希索引查找指向指定地址范围的所有指针
+    std::vector<PointerAllData*> findPointersInRange(Address startAddr, Address endAddr) const;
 
 private:
     // 文件缓存系统
     //std::shared_ptr<FileCache> fileCache_;
     std::shared_ptr<MemoryAccess> memoryAccess_;
     std::shared_ptr<MemoryMap> memoryMap_;
+    
+    // 指针缓存：使用vector存储，排序后支持二分查找
     std::vector<PointerAllData*> pointerCache_;
-    //std::unordered_map<Address, PointerData*> addressMap_;
-    //PointerDataPool dataPool_;
-
-            // 存储所有指针链
-    // 使用双向链表存储，便于查找
+    
+    // 存储所有指针链
     std::vector<std::list<PointerChainNode>> chains_;
+    
+    // 线程安全：用于保护 pointerCache_ 的并发写入
+    mutable std::mutex pointerCacheMutex_;
 
 
 };

@@ -217,7 +217,9 @@ bool MemoryMap::parseProcessModule() {
                 prename = prename + ":bss";
             }
             //std::cout << "   " << prename << std::endl;
+            memset(region->name,0,sizeof(region->name));
             strncpy(region->name,prename.c_str(),prename.length());
+            //std::cout << "   " << region->name << std::endl;
             staticRegionList.push_back(region);
         }
         

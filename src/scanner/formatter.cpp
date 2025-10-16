@@ -59,7 +59,7 @@ bool PointerFormatter::initOutputFile(const std::string& filename) {
         return false;
     }
     
-    file << "# MemoryChainer 指针链扫描结果" << std::endl;
+    //file << "# MemoryChainer 指针链扫描结果" << std::endl;
     file << "# 格式: [模块+偏移] -> [偏移1] -> [偏移2] -> ... -> 目标地址" << std::endl;
     printSeparator(file);
     
@@ -77,6 +77,31 @@ bool PointerFormatter::appendChainToFile(const std::list<PointerChainNode>& chai
     }
     
     file << formatChainToSimple(chain) << std::endl;
+    
+    return true;
+}
+
+bool PointerFormatter::appendChainsToFile(const std::vector<std::list<PointerChainNode>>& chains, const std::string& filename) {
+    if (chains.empty()) {
+        return false;
+    }
+    
+    std::ofstream file(filename, std::ios::app);  // 追加模式
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    // 批量写入，减少IO操作次数
+    // 使用字符串缓冲区进一步优化
+    std::stringstream buffer;
+    for (const auto& chain : chains) {
+        if (!chain.empty()) {
+            buffer << formatChainToSimple(chain) << '\n';
+        }
+    }
+    
+    // 一次性写入所有内容
+    file << buffer.str();
     
     return true;
 }
@@ -145,7 +170,7 @@ std::string PointerFormatter::formatChainToSimple(const std::list<PointerChainNo
     // 格式化静态头节点
     ss << it->staticOffset->region->name << ":";
     ss << "+0x" <<  it->staticOffset->staticOffset;
-    ss << "->0x" << it->offset;
+    //ss << "->0x" << it->offset;
     ++it;
     
 
